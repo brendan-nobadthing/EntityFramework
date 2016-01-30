@@ -44,7 +44,7 @@ namespace Microsoft.EntityFrameworkCore.Tests
                 Assert.Same(navToDependent, principalType.GetNavigations().Single());
                 Assert.Same(fk.PrincipalKey, principalType.GetNavigations().Single().ForeignKey.PrincipalKey);
                 AssertEqual(new[] { "AlternateKey", principalKey.Properties.Single().Name, Customer.NameProperty.Name }, principalType.GetProperties().Select(p => p.Name));
-                AssertEqual(new[] { dependentKey.Properties.Single().Name }, dependentType.GetProperties().Select(p => p.Name));
+                AssertEqual(new[] { dependentKey.Properties.Single().Name, "CustomerId" }, dependentType.GetProperties().Select(p => p.Name));
                 Assert.Empty(principalType.GetForeignKeys());
                 Assert.Same(principalKey, principalType.GetKeys().Single());
                 Assert.Same(dependentKey, dependentType.GetKeys().Single());
@@ -367,7 +367,7 @@ namespace Microsoft.EntityFrameworkCore.Tests
                 Assert.Same(fk, dependentType.GetNavigations().Single().ForeignKey);
                 Assert.Same(fk, principalType.GetNavigations().Single().ForeignKey);
                 AssertEqual(new[] { "AlternateKey", principalKey.Properties.Single().Name, "Name" }, principalType.GetProperties().Select(p => p.Name));
-                AssertEqual(new[] { dependentKey.Properties.Single().Name }, dependentType.GetProperties().Select(p => p.Name));
+                AssertEqual(new[] { dependentKey.Properties.Single().Name, "CustomerId" }, dependentType.GetProperties().Select(p => p.Name));
                 Assert.Empty(principalType.GetForeignKeys());
                 Assert.Same(principalKey, principalType.GetKeys().Single());
                 Assert.Same(dependentKey, dependentType.GetKeys().Single());
@@ -931,7 +931,7 @@ namespace Microsoft.EntityFrameworkCore.Tests
                 Assert.Same(fk, dependentType.GetNavigations().Single().ForeignKey);
                 Assert.Same(fk, principalType.GetNavigations().Single().ForeignKey);
                 AssertEqual(new[] { "AlternateKey", principalKey.Properties.Single().Name, "Name" }, principalType.GetProperties().Select(p => p.Name));
-                AssertEqual(new[] { dependentKey.Properties.Single().Name }, dependentType.GetProperties().Select(p => p.Name));
+                AssertEqual(new[] { dependentKey.Properties.Single().Name, "CustomerId" }, dependentType.GetProperties().Select(p => p.Name));
                 Assert.Empty(principalType.GetForeignKeys());
                 Assert.Same(principalKey, principalType.GetKeys().Single());
                 Assert.Same(dependentKey, dependentType.GetKeys().Single());
@@ -2117,8 +2117,8 @@ namespace Microsoft.EntityFrameworkCore.Tests
             {
                 var modelBuilder = CreateModelBuilder();
                 var model = modelBuilder.Model;
-                modelBuilder.Entity<Whoopper>().HasKey(c => new { c.Id1, c.Id2 });
                 modelBuilder.Entity<ToastedBun>();
+                modelBuilder.Entity<Whoopper>().HasKey(c => new { c.Id1, c.Id2 });
                 modelBuilder.Ignore<Tomato>();
                 modelBuilder.Ignore<Moostard>();
 
@@ -2896,6 +2896,255 @@ namespace Microsoft.EntityFrameworkCore.Tests
                 Assert.Same(relationship, entityType.GetForeignKeys().Single());
                 Assert.Null(relationship.PrincipalToDependent);
                 Assert.Null(relationship.DependentToPrincipal);
+            }
+
+            [Fact]
+            public virtual void Can_create_one_to_one_relationship_if_dependent_has_matching_property_with_navigation_name()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                    {
+                        b.Ignore(e => e.OneToOneDependentEntityId);
+                        b.Ignore(e => e.NavOneToOneDependentEntityId);
+                    });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                modelBuilder.Validate();
+
+                var fk = modelBuilder.Model.FindEntityType(typeof(OneToOnePrincipalEntity)).FindNavigation("NavOneToOneDependentEntity").ForeignKey;
+
+                Assert.Equal(typeof(OneToOneDependentEntity), fk.DeclaringEntityType.ClrType);
+                Assert.Equal(typeof(OneToOnePrincipalEntity), fk.PrincipalEntityType.ClrType);
+                Assert.Equal("NavOneToOnePrincipalEntityId", fk.Properties.First().Name);
+            }
+
+            [Fact]
+            public virtual void Can_create_one_to_one_relationship_if_dependent_has_matching_property_with_entity_type_name()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOneDependentEntityId);
+                    b.Ignore(e => e.NavOneToOneDependentEntityId);
+                });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.NavOneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                modelBuilder.Validate();
+
+                var fk = modelBuilder.Model.FindEntityType(typeof(OneToOnePrincipalEntity)).FindNavigation("NavOneToOneDependentEntity").ForeignKey;
+
+                Assert.Equal(typeof(OneToOneDependentEntity), fk.DeclaringEntityType.ClrType);
+                Assert.Equal(typeof(OneToOnePrincipalEntity), fk.PrincipalEntityType.ClrType);
+                Assert.Equal("OneToOnePrincipalEntityId", fk.Properties.First().Name);
+            }
+
+            [Fact]
+            public virtual void Can_invert_one_to_one_relationship_if_principal_has_matching_property_with_navigation_name()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOneDependentEntityId);
+                });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOnePrincipalEntityId);
+                    b.Ignore(e => e.NavOneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                modelBuilder.Validate();
+
+                var fk = modelBuilder.Model.FindEntityType(typeof(OneToOnePrincipalEntity)).FindNavigation("NavOneToOneDependentEntity").ForeignKey;
+
+                Assert.Equal(typeof(OneToOnePrincipalEntity), fk.DeclaringEntityType.ClrType);
+                Assert.Equal(typeof(OneToOneDependentEntity), fk.PrincipalEntityType.ClrType);
+                Assert.Equal("NavOneToOneDependentEntityId", fk.Properties.First().Name);
+            }
+
+            [Fact]
+            public virtual void Can_invert_one_to_one_relationship_if_principal_has_matching_property_with_entity_type_name()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                {
+                    b.Ignore(e => e.NavOneToOneDependentEntityId);
+                });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOnePrincipalEntityId);
+                    b.Ignore(e => e.NavOneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                modelBuilder.Validate();
+
+                var fk = modelBuilder.Model.FindEntityType(typeof(OneToOnePrincipalEntity)).FindNavigation("NavOneToOneDependentEntity").ForeignKey;
+
+                Assert.Equal(typeof(OneToOnePrincipalEntity), fk.DeclaringEntityType.ClrType);
+                Assert.Equal(typeof(OneToOneDependentEntity), fk.PrincipalEntityType.ClrType);
+                Assert.Equal("OneToOneDependentEntityId", fk.Properties.First().Name);
+            }
+
+            [Fact]
+            public virtual void Throws_for_one_to_one_relationship_if_no_side_has_matching_property()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOneDependentEntityId);
+                    b.Ignore(e => e.NavOneToOneDependentEntityId);
+                });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOnePrincipalEntityId);
+                    b.Ignore(e => e.NavOneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                Assert.Equal(CoreStrings.AmbiguousOneToOneRelationship(
+                        typeof(OneToOnePrincipalEntity).Name,
+                        typeof(OneToOneDependentEntity).Name,
+                        OneToOnePrincipalEntity.NavigationProperty.Name,
+                        OneToOneDependentEntity.NavigationProperty.Name),
+                    Assert.Throws<InvalidOperationException>(() => modelBuilder.Validate()).Message);
+            }
+
+            [Fact]
+            public virtual void Throws_for_one_to_one_relationship_if_both_sides_have_matching_property_with_navigation_name()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOneDependentEntityId);
+                });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                Assert.Equal(CoreStrings.AmbiguousOneToOneRelationship(
+                        typeof(OneToOnePrincipalEntity).Name,
+                        typeof(OneToOneDependentEntity).Name,
+                        OneToOnePrincipalEntity.NavigationProperty.Name,
+                        OneToOneDependentEntity.NavigationProperty.Name),
+                    Assert.Throws<InvalidOperationException>(() => modelBuilder.Validate()).Message);
+            }
+
+            [Fact]
+            public virtual void Throws_for_one_to_one_relationship_if_both_sides_have_matching_property_with_entity_type_name()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                {
+                    b.Ignore(e => e.NavOneToOneDependentEntityId);
+                });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.NavOneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                Assert.Equal(CoreStrings.AmbiguousOneToOneRelationship(
+                        typeof(OneToOnePrincipalEntity).Name,
+                        typeof(OneToOneDependentEntity).Name,
+                        OneToOnePrincipalEntity.NavigationProperty.Name,
+                        OneToOneDependentEntity.NavigationProperty.Name),
+                    Assert.Throws<InvalidOperationException>(() => modelBuilder.Validate()).Message);
+            }
+
+            [Fact]
+            public virtual void Throws_for_one_to_one_relationship_if_both_sides_have_matching_property_mixed()
+            {
+                var modelBuilder = CreateModelBuilder();
+                modelBuilder.Entity<OneToOnePrincipalEntity>(b =>
+                {
+                    b.Ignore(e => e.NavOneToOneDependentEntityId);
+                });
+                modelBuilder.Entity<OneToOneDependentEntity>(b =>
+                {
+                    b.Ignore(e => e.OneToOnePrincipalEntityId);
+                });
+
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity);
+
+                Assert.Equal(CoreStrings.AmbiguousOneToOneRelationship(
+                        typeof(OneToOnePrincipalEntity).Name,
+                        typeof(OneToOneDependentEntity).Name,
+                        OneToOnePrincipalEntity.NavigationProperty.Name,
+                        OneToOneDependentEntity.NavigationProperty.Name),
+                    Assert.Throws<InvalidOperationException>(() => modelBuilder.Validate()).Message);
+            }
+
+            [Fact]
+            public virtual void Can_create_one_to_one_relationship_if_user_specify_foreign_key_property()
+            {
+                var modelBuilder = CreateModelBuilder();
+
+                // For Non-Generic string test
+                modelBuilder.Entity<OneToOneDependentEntity>();
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity).HasForeignKey<OneToOneDependentEntity>(e => e.NavOneToOnePrincipalEntityId);
+
+                modelBuilder.Validate();
+
+                var fk = modelBuilder.Model.FindEntityType(typeof(OneToOnePrincipalEntity)).FindNavigation("NavOneToOneDependentEntity").ForeignKey;
+
+                Assert.Equal(typeof(OneToOneDependentEntity), fk.DeclaringEntityType.ClrType);
+                Assert.Equal(typeof(OneToOnePrincipalEntity), fk.PrincipalEntityType.ClrType);
+                Assert.Equal("NavOneToOnePrincipalEntityId", fk.Properties.First().Name);
+            }
+
+            [Fact]
+            public virtual void Can_create_one_to_one_relationship_if_user_specify_principal_key_property()
+            {
+                var modelBuilder = CreateModelBuilder();
+
+                // For Non-Generic string test
+                modelBuilder.Entity<OneToOneDependentEntity>();
+                modelBuilder.Entity<OneToOnePrincipalEntity>().HasOne(e => e.NavOneToOneDependentEntity).WithOne(e => e.NavOneToOnePrincipalEntity).HasPrincipalKey<OneToOneDependentEntity>(e => e.NavOneToOnePrincipalEntityId);
+
+                modelBuilder.Validate();
+
+                var fk = modelBuilder.Model.FindEntityType(typeof(OneToOnePrincipalEntity)).FindNavigation("NavOneToOneDependentEntity").ForeignKey;
+
+                Assert.Equal(typeof(OneToOnePrincipalEntity), fk.DeclaringEntityType.ClrType);
+                Assert.Equal(typeof(OneToOneDependentEntity), fk.PrincipalEntityType.ClrType);
+                Assert.Equal("NavOneToOnePrincipalEntityId", fk.PrincipalKey.Properties.First().Name);
+                Assert.Equal("NavOneToOneDependentEntityNavOneToOnePrincipalEntityId", fk.Properties.First().Name);
+            }
+
+            [Fact]
+            public virtual void Can_create_one_to_one_relationship_if_foreign_key_attribute_is_used()
+            {
+                var modelBuilder = CreateModelBuilder();
+
+                // For Non-Generic string test
+                modelBuilder.Entity<OneToOneDependentEntityWithAnnotation>();
+                modelBuilder.Entity<OneToOnePrincipalEntityWithAnnotation>().HasOne(e => e.NavOneToOneDependentEntityWithAnnotation).WithOne(e => e.NavOneToOnePrincipalEntityWithAnnotation);
+
+                modelBuilder.Validate();
+
+                var fk = modelBuilder.Model.FindEntityType(typeof(OneToOnePrincipalEntityWithAnnotation)).FindNavigation("NavOneToOneDependentEntityWithAnnotation").ForeignKey;
+
+                Assert.Equal(typeof(OneToOnePrincipalEntityWithAnnotation), fk.DeclaringEntityType.ClrType);
+                Assert.Equal(typeof(OneToOneDependentEntityWithAnnotation), fk.PrincipalEntityType.ClrType);
+                Assert.Equal("FkProperty", fk.Properties.First().Name);
             }
         }
     }

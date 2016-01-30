@@ -528,4 +528,7 @@
   <data name="InvalidSetType" xml:space="preserve">
     <value>Cannot create a DbSet for '{typeName}' because this type is not included in the model for the context.</value>
   </data>
+  <data name="AmbiguousOneToOneRelationship" xml:space="preserve">
+    <value>Principal and dependent side cannot be determined for one to one relationship between entity types '{declaringEntityType}' and '{principalEntityType}' involving navigations - '{dependentToPrincipalNavigation}' and '{principalToDependentNavigation}'.</value>
+  </data>
 </root>
